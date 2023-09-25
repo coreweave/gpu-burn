@@ -621,6 +621,12 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     printf("\nTested %d GPUs:\n", (int)clientPid.size());
     for (size_t i = 0; i < clientPid.size(); ++i)
         printf("\tGPU %d: %s\n", (int)i, clientFaulty.at(i) ? "FAULTY" : "OK");
+
+    for (size_t i = 0; i < clientPid.size(); ++i)
+        if (clientFaulty.at(i)) {
+            printf("Faulty GPU detected, exiting\n");
+            return exit(1);
+        }
 }
 
 template <class T>
