@@ -35,7 +35,7 @@ gpu_burn: gpu_burn-drv.o compare.ptx
 %.o: %.cpp
 	g++ ${CFLAGS} -c $<
 
-%.ptx: %.cu
+%.ptx: compare.cu
 	PATH="${PATH}:${CCPATH}:." ${NVCC} ${NVCCFLAGS} -ptx $< -o $@
 
 clean:
