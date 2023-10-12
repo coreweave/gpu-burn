@@ -386,7 +386,7 @@ int pollTemp(pid_t *p) {
     return tempPipe[0];
 }
 
-void updateTemps(int handle, std::vector<int> *temps) {
+void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps) {
     const int readSize = 10240;
     static int gpuIter = 0;
     char data[readSize + 1];
@@ -404,6 +404,8 @@ void updateTemps(int handle, std::vector<int> *temps) {
                "		GPU Current Temp			: %d C",
                &tempValue) == 1) {
         temps->at(gpuIter) = tempValue;
+        if (tempValue > maxTemps->at(gpuIter))
+            maxTemps->at(gpuIter) = tempValue;
         gpuIter = (gpuIter + 1) % (temps->size());
     } else if (!strcmp(data, "		Gpu				"
                              "	 : N/A"))
@@ -430,6 +432,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     }
 
     std::vector<int> clientTemp;
+    std::vector<int> clientMaxTemp;
     std::vector<int> clientErrors;
     std::vector<int> clientCalcs;
     std::vector<struct timespec> clientUpdateTime;
@@ -440,6 +443,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
 
     for (size_t i = 0; i < clientFd.size(); ++i) {
         clientTemp.push_back(0);
+        clientMaxTemp.push_back(0);
         clientErrors.push_back(0);
         clientCalcs.push_back(0);
         struct timespec thisTime;
@@ -495,7 +499,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
             }
 
         if (FD_ISSET(tempHandle, &waitHandles))
-            updateTemps(tempHandle, &clientTemp);
+            updateTemps(tempHandle, &clientTemp, &clientMaxTemp);
 
         // Resetting the listeners
         FD_ZERO(&waitHandles);
@@ -617,6 +621,12 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     while (wait(NULL) != -1)
         ;
     printf("done\n");
+
+    printf("Max temps:");
+    for (size_t i = 0; i < clientMaxTemp.size(); ++i) {
+        printf(clientMaxTemp.at(i) != 0 ? " GPU%d=%dC," : "GPU %d=--,",
+               (int)i, clientMaxTemp.at(i));
+    }
 
     printf("\nTested %d GPUs:\n", (int)clientPid.size());
     for (size_t i = 0; i < clientPid.size(); ++i)
