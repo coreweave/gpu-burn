@@ -56,6 +56,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <vector>
+#include <limits>
 
 #define SIGTERM_TIMEOUT_THRESHOLD_SECS 30 // number of seconds for sigterm to kill child processes before forcing a sigkill
 
@@ -437,6 +438,8 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     std::vector<int> clientCalcs;
     std::vector<struct timespec> clientUpdateTime;
     std::vector<float> clientGflops;
+    std::vector<float> clientMinGflops;
+    std::vector<float> clientMaxGflops;
     std::vector<bool> clientFaulty;
 
     time_t startTime = time(0);
@@ -450,6 +453,8 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
         clock_gettime(CLOCK_REALTIME, &thisTime);
         clientUpdateTime.push_back(thisTime);
         clientGflops.push_back(0.0f);
+        clientMaxGflops.push_back(std::numeric_limits<float>::min());
+        clientMinGflops.push_back(std::numeric_limits<float>::max());
         clientFaulty.push_back(false);
     }
 
@@ -493,6 +498,11 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
                                  OPS_PER_MUL) /
                         clientTimeDelta / 1000.0 / 1000.0 / 1000.0;
                     clientCalcs.at(i) += processed;
+                    if(clientGflops.at(i) > clientMaxGflops.at(i)) {
+                        clientMaxGflops.at(i) = clientGflops.at(i);
+                    } else if(clientGflops.at(i) < clientMinGflops.at(i)) {
+                        clientMinGflops.at(i) = clientGflops.at(i);
+                    }
                 }
 
                 childReport = true;
@@ -622,13 +632,20 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
         ;
     printf("done\n");
 
-    printf("Max temps:");
     for (size_t i = 0; i < clientMaxTemp.size(); ++i) {
-        printf(clientMaxTemp.at(i) != 0 ? " GPU%d=%dC," : "GPU %d=--,",
+        printf(clientMaxTemp.at(i) != 0 ? "Max temp GPU%d=%dC\n" : "GPU %d=--\n",
                (int)i, clientMaxTemp.at(i));
     }
+    for (size_t i = 0; i < clientMinGflops.size(); ++i) {
+        printf(clientMinGflops.at(i) != 0 ? "Min Gflops GPU%d=%f Gflops/s\n" : "GPU %d=--\n",
+               (int)i, clientMinGflops.at(i));
+    }
+    for (size_t i = 0; i < clientMaxGflops.size(); ++i) {
+        printf(clientMaxGflops.at(i) != 0 ? "Max Gflops GPU%d=%f Gflops/s\n" : "GPU %d=--\n",
+               (int)i, clientMaxGflops.at(i));
+    }
 
-    printf("\nTested %d GPUs:\n", (int)clientPid.size());
+    printf("Tested %d GPUs:\n", (int)clientPid.size());
     for (size_t i = 0; i < clientPid.size(); ++i)
         printf("\tGPU %d: %s\n", (int)i, clientFaulty.at(i) ? "FAULTY" : "OK");
 
