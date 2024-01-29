@@ -645,6 +645,15 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
                (int)i, clientMaxGflops.at(i));
     }
 
+    for (size_t i = 0; i < clientCalcs.size(); ++i) {
+        if(clientCalcs.at(i) == 0) {
+            /* GPU did not return any results */
+            clientFaulty.at(i) = true;
+            printf("\tGPU %d: did not return any results\n", (int)i);
+        }
+    }
+
+
     printf("Tested %d GPUs:\n", (int)clientPid.size());
     for (size_t i = 0; i < clientPid.size(); ++i)
         printf("\tGPU %d: %s\n", (int)i, clientFaulty.at(i) ? "FAULTY" : "OK");
