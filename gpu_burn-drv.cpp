@@ -29,7 +29,7 @@
 
 // Matrices are SIZE*SIZE..  POT should be efficiently implemented in CUBLAS
 #define SIZE 8192ul
-#define USEMEM 0.9 // Try to allocate 90% of memory
+#define USEMEM 1.0 // Try to allocate 100% of free memory
 #define COMPARE_KERNEL "compare.ptx"
 
 // Used to report op/s, measured through Visual Profiler, CUBLAS from CUDA 7.5
