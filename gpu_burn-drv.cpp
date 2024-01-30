@@ -646,7 +646,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     }
 
     for (size_t i = 0; i < clientCalcs.size(); ++i) {
-        if(clientCalcs.at(i) == 0) {
+        if(clientCalcs.at(i) <= 0) {
             /* GPU did not return any results */
             clientFaulty.at(i) = true;
             printf("\tGPU %d: did not return any results\n", (int)i);
