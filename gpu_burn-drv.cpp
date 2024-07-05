@@ -374,8 +374,9 @@ int pollTemp(pid_t *p) {
     if (!myPid) {
         close(tempPipe[0]);
         dup2(tempPipe[1], STDOUT_FILENO);
-        execlp("nvidia-smi", "nvidia-smi", "-l", "5", "-q", "-d", "TEMPERATURE",
-               NULL);
+	/* nvidia-smi -l 5 --query-gpu=index,temperature.gpu,temperature.gpu.tlimit --format=csv */
+        execlp("nvidia-smi", "nvidia-smi", "-l", "5",
+	       "--query-gpu=index,temperature.gpu,temperature.gpu.tlimit", "--format=csv", NULL);
         fprintf(stderr, "Could not invoke nvidia-smi, no temps available\n");
 
         exit(ENODEV);
@@ -389,7 +390,7 @@ int pollTemp(pid_t *p) {
 
 void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps, std::vector<int> *TLimits, std::vector<int> *minTLimits) {
     const int readSize = 10240;
-    static int gpuIter = 0;
+    int gpuIter = 0;
     char data[readSize + 1];
 
     int curPos = 0;
@@ -399,27 +400,23 @@ void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps
 
     data[curPos - 1] = 0;
 
-    int tempValue;
-    int TLimitValue;
-    // FIXME: The syntax of this print might change in the future..
-    if (sscanf(data,
-               "		GPU Current Temp			: %d C",
-               &tempValue) == 1) {
+    int tempValue = 0;
+    int TLimitValue = std::numeric_limits<int>::max();
+    /* if we get at least GPU index and temperature, T.Limit may not always be avaialble */
+    if (!strncmp(data, "index", 5)) {
+	return;
+    } else if (sscanf(data, "%d, %d, %d", &gpuIter, &tempValue, &TLimitValue) == 3) {
         temps->at(gpuIter) = tempValue;
-        if (tempValue > maxTemps->at(gpuIter))
+	TLimits->at(gpuIter) = TLimitValue;
+	if (tempValue > maxTemps->at(gpuIter))
             maxTemps->at(gpuIter) = tempValue;
-    } else if (sscanf(data,
-               "		GPU T.Limit Temp			: %d C",
-               &TLimitValue) == 1) {
-        TLimits->at(gpuIter) = TLimitValue;
-        if (TLimitValue < minTLimits->at(gpuIter))
+	if (TLimitValue < minTLimits->at(gpuIter))
             minTLimits->at(gpuIter) = TLimitValue;
-        gpuIter = (gpuIter + 1) % (temps->size());
-    } else if (!strcmp(data, "		Gpu				"
-                             "	 : N/A"))
-        gpuIter =
-            (gpuIter + 1) %
-            (temps->size()); // We rotate the iterator for N/A values as well
+    } else if (sscanf(data, "%d, %d, [N/A]", &gpuIter, &tempValue) == 2) {
+        temps->at(gpuIter) = tempValue;
+	if (tempValue > maxTemps->at(gpuIter))
+            maxTemps->at(gpuIter) = tempValue;
+    }
 }
 
 void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
@@ -802,7 +799,7 @@ void showHelp() {
     printf("Examples:\n");
     printf("  gpu-burn -d 3600 # burns all GPUs with doubles for an hour\n");
     printf(
-        "  gpu-burn -m 50%% # burns using 50% of the available GPU memory\n");
+        "  gpu-burn -m 50%% # burns using 50%% of the available GPU memory\n");
     printf("  gpu-burn -l # list GPUs\n");
     printf("  gpu-burn -i 2 # burns only GPU of index 2\n");
 }
