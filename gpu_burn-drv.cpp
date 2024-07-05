@@ -387,7 +387,7 @@ int pollTemp(pid_t *p) {
     return tempPipe[0];
 }
 
-void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps) {
+void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps, std::vector<int> *TLimits, std::vector<int> *minTLimits) {
     const int readSize = 10240;
     static int gpuIter = 0;
     char data[readSize + 1];
@@ -400,6 +400,7 @@ void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps
     data[curPos - 1] = 0;
 
     int tempValue;
+    int TLimitValue;
     // FIXME: The syntax of this print might change in the future..
     if (sscanf(data,
                "		GPU Current Temp			: %d C",
@@ -407,6 +408,12 @@ void updateTemps(int handle, std::vector<int> *temps, std::vector<int> *maxTemps
         temps->at(gpuIter) = tempValue;
         if (tempValue > maxTemps->at(gpuIter))
             maxTemps->at(gpuIter) = tempValue;
+    } else if (sscanf(data,
+               "		GPU T.Limit Temp			: %d C",
+               &TLimitValue) == 1) {
+        TLimits->at(gpuIter) = TLimitValue;
+        if (TLimitValue < minTLimits->at(gpuIter))
+            minTLimits->at(gpuIter) = TLimitValue;
         gpuIter = (gpuIter + 1) % (temps->size());
     } else if (!strcmp(data, "		Gpu				"
                              "	 : N/A"))
@@ -434,6 +441,8 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
 
     std::vector<int> clientTemp;
     std::vector<int> clientMaxTemp;
+    std::vector<int> clientTLimit;
+    std::vector<int> clientMinTLimit;
     std::vector<int> clientErrors;
     std::vector<int> clientCalcs;
     std::vector<struct timespec> clientUpdateTime;
@@ -446,7 +455,9 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
 
     for (size_t i = 0; i < clientFd.size(); ++i) {
         clientTemp.push_back(0);
+        clientTLimit.push_back(0);
         clientMaxTemp.push_back(0);
+        clientMinTLimit.push_back(std::numeric_limits<int>::max());
         clientErrors.push_back(0);
         clientCalcs.push_back(0);
         struct timespec thisTime;
@@ -509,7 +520,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
             }
 
         if (FD_ISSET(tempHandle, &waitHandles))
-            updateTemps(tempHandle, &clientTemp, &clientMaxTemp);
+            updateTemps(tempHandle, &clientTemp, &clientMaxTemp, &clientTLimit, &clientMinTLimit);
 
         // Resetting the listeners
         FD_ZERO(&waitHandles);
@@ -635,6 +646,10 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid,
     for (size_t i = 0; i < clientMaxTemp.size(); ++i) {
         printf(clientMaxTemp.at(i) != 0 ? "Max temp GPU%d=%dC\n" : "GPU %d=--\n",
                (int)i, clientMaxTemp.at(i));
+    }
+    for (size_t i = 0; i < clientMinTLimit.size(); ++i) {
+        printf(clientMaxTemp.at(i) != 0 ? "Min T.Limit GPU%d=%dC\n" : "GPU %d=--\n",
+               (int)i, clientMinTLimit.at(i));
     }
     for (size_t i = 0; i < clientMinGflops.size(); ++i) {
         printf(clientMinGflops.at(i) != 0 ? "Min Gflops GPU%d=%f Gflops/s\n" : "GPU %d=--\n",
